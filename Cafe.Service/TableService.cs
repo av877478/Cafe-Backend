@@ -11,10 +11,12 @@ namespace Cafe.Service
     public class TableService
     {
         private readonly ApplicationDbContext _dbContext;
+        private readonly QrCodeService _qrCodeService;
 
-        public TableService(ApplicationDbContext dbContext)
+        public TableService(ApplicationDbContext dbContext, QrCodeService qrCodeService)
         {
             _dbContext = dbContext;
+            _qrCodeService = qrCodeService;
         }
 
         #region Get Tables
@@ -85,7 +87,7 @@ namespace Cafe.Service
 
             // Automatically generate active QR code for newly created table
             var qrToken = QrCodeService.GenerateSecureToken();
-            var targetUrl = $"http://localhost:4200/t/{qrToken}";
+            var targetUrl = _qrCodeService.BuildTargetUrl(qrToken);
             var imageUrl = $"https://api.qrserver.com/v1/create-qr-code/?size=300x300&data={Uri.EscapeDataString(targetUrl)}";
 
             var qrCode = new TableQrCode

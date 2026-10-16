@@ -44,5 +44,10 @@ namespace Cafe.Repository.Concreate
         {
             return _qrCodeService.GenerateQrPngBytes(token);
         }
+
+        public async Task<(bool Success, string? TableNumber, string? Message)> ResolveTokenAsync(string token)
+        {
+            return await _qrCodeService.ResolveTokenAsync(token);
+        }
     }
 }

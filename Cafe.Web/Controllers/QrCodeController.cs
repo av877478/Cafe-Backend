@@ -194,5 +194,30 @@ namespace Cafe.Web.Controllers
                 return StatusCode(500, new { message = "Failed to download QR image.", error = ex.Message });
             }
         }
+
+        /// <summary>
+        /// Validates a scanned QR token and returns the assigned table number.
+        /// Routes: GET /api/qrcode/resolve/{token}, GET /api/qr-codes/resolve/{token}
+        /// </summary>
+        [HttpGet("resolve/{token}")]
+        [ProducesResponseType(200)]
+        [ProducesResponseType(400)]
+        public async Task<IActionResult> ResolveToken(string token)
+        {
+            try
+            {
+                var (success, tableNumber, message) = await _qrCodeRepository.ResolveTokenAsync(token);
+                if (!success)
+                {
+                    return BadRequest(new { success = false, message = message ?? "Invalid or expired QR code." });
+                }
+
+                return Ok(new { success = true, tableNumber });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { success = false, message = "Failed to resolve QR token.", error = ex.Message });
+            }
+        }
     }
 }
