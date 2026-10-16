@@ -74,7 +74,7 @@ builder.Services.AddCors(options =>
     options.AddPolicy("AllowFrontend", policy =>
     {
         policy.WithOrigins(
-            "https://cafe-ui-coral.vercel.app/customer/home",
+            "https://cafe-ui-coral.vercel.app",
                 "http://localhost:4200")
               .AllowAnyHeader()
               .AllowAnyMethod()
