@@ -27,9 +27,6 @@ namespace Cafe.Service
 
         public async Task<List<ProductDto>> GetAllProductsAsync(string? categoryId = null, string? statusFilter = null, string? search = null)
         {
-            // Seed initial sample products if table is completely empty
-            await EnsureDefaultProductsAsync();
-
             var query = _dbContext.Products.AsNoTracking().AsQueryable();
 
             // Category filter
@@ -71,8 +68,6 @@ namespace Cafe.Service
 
         public async Task<List<ProductDto>> GetCustomerMenuProductsAsync(string? categoryId = null, string? search = null)
         {
-            await EnsureDefaultProductsAsync();
-
             var query = _dbContext.Products.AsNoTracking().Where(p => p.Status.ToLower() != "inactive");
 
             if (!string.IsNullOrWhiteSpace(categoryId) && !categoryId.Equals("All", StringComparison.OrdinalIgnoreCase))
@@ -309,145 +304,6 @@ namespace Cafe.Service
                 category.ItemCount = await _dbContext.Products.CountAsync(p => p.CategoryId == categoryId);
                 await _dbContext.SaveChangesAsync();
             }
-        }
-
-        private async Task EnsureDefaultProductsAsync()
-        {
-            if (await _dbContext.Products.AnyAsync()) return;
-
-            // Make sure categories exist
-            var categories = await _dbContext.Categories.ToListAsync();
-            if (categories.Count == 0) return;
-
-            var hotCoffeeCat = categories.FirstOrDefault(c => c.Name.Contains("Coffee", StringComparison.OrdinalIgnoreCase)) ?? categories[0];
-            var coldBrewCat = categories.FirstOrDefault(c => c.Name.Contains("Cold", StringComparison.OrdinalIgnoreCase)) ?? categories.ElementAtOrDefault(1) ?? categories[0];
-            var pastryCat = categories.FirstOrDefault(c => c.Name.Contains("Pastr", StringComparison.OrdinalIgnoreCase)) ?? categories.ElementAtOrDefault(2) ?? categories[0];
-            var sandwichCat = categories.FirstOrDefault(c => c.Name.Contains("Sandwich", StringComparison.OrdinalIgnoreCase)) ?? categories.ElementAtOrDefault(3) ?? categories[0];
-
-            var macchiatoCustomizations = new List<CustomizationGroupDto>
-            {
-                new CustomizationGroupDto
-                {
-                    Name = "Size",
-                    IsRequired = true,
-                    MaxSelections = 1,
-                    Options = new List<CustomizationOptionDto>
-                    {
-                        new CustomizationOptionDto { Name = "Tall (Small)", PriceAdjustment = 0m },
-                        new CustomizationOptionDto { Name = "Grande (Medium)", PriceAdjustment = 0.80m },
-                        new CustomizationOptionDto { Name = "Venti (Large)", PriceAdjustment = 1.20m }
-                    }
-                },
-                new CustomizationGroupDto
-                {
-                    Name = "Extra Shots",
-                    IsRequired = false,
-                    MaxSelections = null,
-                    Options = new List<CustomizationOptionDto>
-                    {
-                        new CustomizationOptionDto { Name = "Extra Espresso Shot", PriceAdjustment = 1.00m }
-                    }
-                }
-            };
-
-            var seedProducts = new List<Product>
-            {
-                new Product
-                {
-                    Name = "Caramel Macchiato",
-                    CategoryId = hotCoffeeCat.Id,
-                    CategoryName = hotCoffeeCat.Name,
-                    Description = "Freshly steamed milk with vanilla-flavored syrup marked with espresso and topped with a caramel drizzle.",
-                    BasePrice = 4.95m,
-                    ImageUrl = "https://images.unsplash.com/photo-1485808191679-5f86510681a2?q=80&w=600&auto=format&fit=crop",
-                    Status = "Active",
-                    IsFeatured = true,
-                    IsPopular = true,
-                    PreparationTime = 5,
-                    CustomizationGroupsJson = JsonSerializer.Serialize(macchiatoCustomizations, JsonOptions),
-                    CreatedAt = DateTime.UtcNow
-                },
-                new Product
-                {
-                    Name = "Iced Latte",
-                    CategoryId = coldBrewCat.Id,
-                    CategoryName = coldBrewCat.Name,
-                    Description = "Our dark, rich espresso combined with milk and served over ice.",
-                    BasePrice = 3.95m,
-                    ImageUrl = "https://images.unsplash.com/photo-1461023058943-0708e528a304?q=80&w=600&auto=format&fit=crop",
-                    Status = "Active",
-                    IsFeatured = true,
-                    IsPopular = true,
-                    PreparationTime = 3,
-                    CreatedAt = DateTime.UtcNow
-                },
-                new Product
-                {
-                    Name = "Avocado Toast",
-                    CategoryId = sandwichCat.Id,
-                    CategoryName = sandwichCat.Name,
-                    Description = "Sourdough toast topped with smashed avocado, chili flakes, and microgreens.",
-                    BasePrice = 8.50m,
-                    ImageUrl = "https://www.eatingbirdfood.com/wp-content/uploads/2023/12/avocado-toast-hero-cropped.jpg?auto=format&fit=crop&q=80&w=600",
-                    Status = "Active",
-                    IsFeatured = true,
-                    IsPopular = true,
-                    PreparationTime = 8,
-                    CreatedAt = DateTime.UtcNow
-                },
-                new Product
-                {
-                    Name = "Matcha Cheesecake",
-                    CategoryId = pastryCat.Id,
-                    CategoryName = pastryCat.Name,
-                    Description = "Creamy cheesecake infused with premium ceremonial grade matcha.",
-                    BasePrice = 6.50m,
-                    ImageUrl = "https://emsfoodiefix.com/wp-content/uploads/2025/03/DSC08960.jpg?auto=format&fit=crop&q=80&w=600",
-                    Status = "Active",
-                    IsFeatured = true,
-                    IsPopular = true,
-                    PreparationTime = 2,
-                    CreatedAt = DateTime.UtcNow
-                },
-                new Product
-                {
-                    Name = "Butter Croissant",
-                    CategoryId = pastryCat.Id,
-                    CategoryName = pastryCat.Name,
-                    Description = "A classic butter croissant with a flaky, golden-brown crust.",
-                    BasePrice = 3.25m,
-                    ImageUrl = "https://images.unsplash.com/photo-1549903072-7e6e0fb26ffe?q=80&w=600&auto=format&fit=crop",
-                    Status = "Active",
-                    IsFeatured = false,
-                    IsPopular = true,
-                    PreparationTime = 2,
-                    CreatedAt = DateTime.UtcNow
-                },
-                new Product
-                {
-                    Name = "Turkey Panini",
-                    CategoryId = sandwichCat.Id,
-                    CategoryName = sandwichCat.Name,
-                    Description = "Roast turkey, provolone cheese, and pesto on toasted focaccia.",
-                    BasePrice = 7.45m,
-                    ImageUrl = "https://images.unsplash.com/photo-1528735602780-2552fd46c7af?q=80&w=600&auto=format&fit=crop",
-                    Status = "Active",
-                    IsFeatured = false,
-                    IsPopular = true,
-                    PreparationTime = 7,
-                    CreatedAt = DateTime.UtcNow
-                }
-            };
-
-            await _dbContext.Products.AddRangeAsync(seedProducts);
-            await _dbContext.SaveChangesAsync();
-
-            // Update item counts for all categories
-            foreach (var cat in categories)
-            {
-                cat.ItemCount = await _dbContext.Products.CountAsync(p => p.CategoryId == cat.Id);
-            }
-            await _dbContext.SaveChangesAsync();
         }
 
         #endregion

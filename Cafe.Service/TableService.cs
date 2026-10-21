@@ -23,8 +23,6 @@ namespace Cafe.Service
 
         public async Task<List<TableDto>> GetAllTablesAsync(string? statusFilter = null)
         {
-            // Seed initial tables if database is completely empty
-            await EnsureDefaultTablesAsync();
 
             var query = _dbContext.Tables.AsNoTracking();
 
@@ -87,7 +85,7 @@ namespace Cafe.Service
 
             // Automatically generate active QR code for newly created table
             var qrToken = QrCodeService.GenerateSecureToken();
-            var targetUrl = _qrCodeService.BuildTargetUrl(qrToken);
+            var targetUrl = _qrCodeService.BuildTargetUrl(qrToken, newTable.Id, newTable.Number);
             var imageUrl = $"https://api.qrserver.com/v1/create-qr-code/?size=300x300&data={Uri.EscapeDataString(targetUrl)}";
 
             var qrCode = new TableQrCode
@@ -197,28 +195,7 @@ namespace Cafe.Service
 
         #endregion
 
-        #region Seed Helpers
-
-        private async Task EnsureDefaultTablesAsync()
-        {
-            if (!await _dbContext.Tables.AnyAsync())
-            {
-                var defaultTables = new List<CafeTable>
-                {
-                    new CafeTable { Number = 1, Capacity = 2, Status = "Available", CreatedAt = DateTime.UtcNow },
-                    new CafeTable { Number = 2, Capacity = 2, Status = "Occupied", CreatedAt = DateTime.UtcNow },
-                    new CafeTable { Number = 3, Capacity = 4, Status = "Available", CreatedAt = DateTime.UtcNow },
-                    new CafeTable { Number = 4, Capacity = 4, Status = "Reserved", CreatedAt = DateTime.UtcNow },
-                    new CafeTable { Number = 5, Capacity = 6, Status = "Available", CreatedAt = DateTime.UtcNow },
-                    new CafeTable { Number = 6, Capacity = 8, Status = "Occupied", CreatedAt = DateTime.UtcNow },
-                    new CafeTable { Number = 7, Capacity = 2, Status = "Out of Service", CreatedAt = DateTime.UtcNow },
-                    new CafeTable { Number = 8, Capacity = 4, Status = "Available", CreatedAt = DateTime.UtcNow }
-                };
-
-                await _dbContext.Tables.AddRangeAsync(defaultTables);
-                await _dbContext.SaveChangesAsync();
-            }
-        }
+        #region Helpers
 
         private static string NormalizeStatus(string status)
         {

@@ -27,6 +27,8 @@ namespace Cafe.Model.Model
 
         public string? TableNumber { get; set; }
 
+        public string? TableId { get; set; }
+
         public string? ServiceType { get; set; }
     }
 
@@ -63,6 +65,8 @@ namespace Cafe.Model.Model
 
         public string? TableNumber { get; set; }
 
+        public string? TableId { get; set; }
+
         public string ServiceType { get; set; } = "Dine-In"; // Dine-In | Takeaway
 
         public string PaymentMethod { get; set; } = "Online"; // Online | Cash | Card | UPI
@@ -70,6 +74,8 @@ namespace Cafe.Model.Model
         public string? PaymentStatus { get; set; } = "Pending";
 
         public string? TransactionId { get; set; }
+
+        public string? GuestId { get; set; }
 
         public string? Notes { get; set; }
 

@@ -205,11 +205,25 @@ namespace Cafe.Service
                     : $"{combinedNotes} | General: {request.Notes}";
             }
 
+            if (!string.IsNullOrWhiteSpace(request.GuestId))
+            {
+                var guestTag = $"[GuestId: {request.GuestId.Trim()}]";
+                combinedNotes = string.IsNullOrWhiteSpace(combinedNotes) ? guestTag : $"{combinedNotes} {guestTag}";
+            }
+
             // 3. Delegate to OrderService to generate order number and persist
+            string? tableNumber = CleanTableNumber(request.TableNumber);
+            if (string.IsNullOrWhiteSpace(tableNumber) && !string.IsNullOrWhiteSpace(request.TableId) && int.TryParse(request.TableId, out int tId))
+            {
+                var tbl = await _dbContext.Tables.AsNoTracking().FirstOrDefaultAsync(t => t.Id == tId);
+                tableNumber = tbl != null ? tbl.Number.ToString() : request.TableId.Trim();
+            }
+
             var createOrderDto = new CreateOrderDto
             {
                 CustomerName = request.CustomerName.Trim(),
-                TableNumber = string.IsNullOrWhiteSpace(request.TableNumber) ? null : request.TableNumber.Trim(),
+                TableNumber = tableNumber,
+                GuestId = request.GuestId?.Trim(),
                 ServiceType = string.IsNullOrWhiteSpace(request.ServiceType) ? "Dine-In" : request.ServiceType.Trim(),
                 PaymentStatus = string.IsNullOrWhiteSpace(request.PaymentStatus) ? "Pending" : request.PaymentStatus.Trim(),
                 PaymentMethod = string.IsNullOrWhiteSpace(request.PaymentMethod) ? "Online" : request.PaymentMethod.Trim(),
@@ -299,6 +313,30 @@ namespace Cafe.Service
                 "JPY" => "¥",
                 _ => "$"
             };
+        }
+
+        public static string? CleanTableNumber(string? input)
+        {
+            if (string.IsNullOrWhiteSpace(input)) return null;
+            var clean = input.Trim();
+            if (clean.Equals("Unknown", StringComparison.OrdinalIgnoreCase) ||
+                clean.Equals("Table Unknown", StringComparison.OrdinalIgnoreCase))
+            {
+                return null;
+            }
+            if (clean.StartsWith("Table ", StringComparison.OrdinalIgnoreCase))
+            {
+                clean = clean[6..].Trim();
+            }
+            else if (clean.StartsWith("Tbl ", StringComparison.OrdinalIgnoreCase))
+            {
+                clean = clean[4..].Trim();
+            }
+            else if (clean.StartsWith('#'))
+            {
+                clean = clean.TrimStart('#').Trim();
+            }
+            return string.IsNullOrWhiteSpace(clean) ? null : clean;
         }
     }
 }

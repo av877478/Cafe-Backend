@@ -94,13 +94,13 @@ namespace Cafe.Service
         #region Resolve QR Token
 
         /// <summary>
-        /// Validates a scanned QR token and resolves it to an active table number.
+        /// Validates a scanned QR token and resolves it to an active table number and table ID.
         /// </summary>
-        public async Task<(bool Success, string? TableNumber, string? Message)> ResolveTokenAsync(string token)
+        public async Task<(bool Success, string? TableNumber, string? TableId, string? Message)> ResolveTokenAsync(string token)
         {
             if (string.IsNullOrWhiteSpace(token))
             {
-                return (false, null, "QR token is required.");
+                return (false, null, null, "QR token is required.");
             }
 
             var cleanToken = token.Trim();
@@ -115,18 +115,18 @@ namespace Cafe.Service
                 {
                     var parts = cleanToken.Split('_');
                     var tblNum = parts.Length > 1 ? parts[1] : "1";
-                    return (true, tblNum, null);
+                    return (true, tblNum, tblNum, null);
                 }
 
-                return (false, null, "Invalid or expired QR code.");
+                return (false, null, null, "Invalid or expired QR code.");
             }
 
             if (!qr.Status.Equals("Active", StringComparison.OrdinalIgnoreCase))
             {
-                return (false, null, "This table QR code has been deactivated.");
+                return (false, null, null, "This table QR code has been deactivated.");
             }
 
-            return (true, qr.TableNumber.ToString(), null);
+            return (true, qr.TableNumber.ToString(), qr.TableId.ToString(), null);
         }
 
         #endregion
@@ -145,9 +145,9 @@ namespace Cafe.Service
                 existing.RevokedAt = DateTime.UtcNow;
             }
 
-            // Generate unique secure token and build proper customer welcome URL
+            // Generate unique secure token and build proper customer home URL with table id and table number
             var token = GenerateSecureToken();
-            var targetUrl = BuildTargetUrl(token);
+            var targetUrl = BuildTargetUrl(token, tableId, tableNumber);
             var imageUrl = $"https://api.qrserver.com/v1/create-qr-code/?size=300x300&data={Uri.EscapeDataString(targetUrl)}";
 
             var newQr = new TableQrCode
@@ -197,7 +197,10 @@ namespace Cafe.Service
 
         public byte[] GenerateQrPngBytes(string token)
         {
-            var targetUrl = BuildTargetUrl(token);
+            var qr = _dbContext.TableQrCodes.AsNoTracking().FirstOrDefault(q => q.Token == token);
+            var tableId = qr?.TableId ?? 1;
+            var tableNumber = qr?.TableNumber ?? 1;
+            var targetUrl = BuildTargetUrl(token, tableId, tableNumber);
             using var qrGenerator = new QRCodeGenerator();
             using var qrCodeData = qrGenerator.CreateQrCode(targetUrl, QRCodeGenerator.ECCLevel.Q);
             var qrCode = new PngByteQRCode(qrCodeData);
@@ -209,38 +212,41 @@ namespace Cafe.Service
         #region Seed & URL Helpers
 
         /// <summary>
-        /// Builds the target customer URL for a QR code token, respecting configured base URL or LAN IP.
+        /// Builds the target customer URL for a QR code token, table ID, and table number.
+        /// Formats target to: https://cafe-ui-coral.vercel.app/customer/home?tableId={tableId}&tableNo={tableNumber}&table={tableNumber}&token={token}
         /// </summary>
-        public string BuildTargetUrl(string token)
+        public string BuildTargetUrl(string token, int tableId, int tableNumber)
         {
             var baseUrl = _configuration["Frontend:BaseUrl"] ?? _configuration["QrCode:BaseUrl"];
 
             if (string.IsNullOrWhiteSpace(baseUrl))
             {
-                // Fall back to LAN IP if detectable so phone scanning works over Wi-Fi
-                baseUrl = GetLocalIpBaseUrl() ?? "http://localhost:4200";
+                baseUrl = "https://cafe-ui-coral.vercel.app";
             }
 
             baseUrl = baseUrl.TrimEnd('/');
-            return $"{baseUrl}/customer/welcome/{token}";
+            return $"{baseUrl}/customer/home?tableId={tableId}&tableNo={tableNumber}&table={tableNumber}&token={token}";
         }
 
-        private static string? GetLocalIpBaseUrl()
+        /// <summary>
+        /// Overload to build URL when table number is provided and table ID is looked up or defaults to table number.
+        /// </summary>
+        public string BuildTargetUrl(string token, int tableNumber)
         {
-            try
-            {
-                using var socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, 0);
-                socket.Connect("8.8.8.8", 65530);
-                if (socket.LocalEndPoint is IPEndPoint endPoint)
-                {
-                    return $"http://{endPoint.Address}:4200";
-                }
-            }
-            catch
-            {
-                // Fallback
-            }
-            return null;
+            var qr = _dbContext.TableQrCodes.AsNoTracking().FirstOrDefault(q => q.Token == token);
+            var tableId = qr?.TableId ?? tableNumber;
+            return BuildTargetUrl(token, tableId, tableNumber);
+        }
+
+        /// <summary>
+        /// Overload to build URL when table ID and number are looked up from token or default to 1.
+        /// </summary>
+        public string BuildTargetUrl(string token)
+        {
+            var qr = _dbContext.TableQrCodes.AsNoTracking().FirstOrDefault(q => q.Token == token);
+            var tableId = qr?.TableId ?? 1;
+            var tableNumber = qr?.TableNumber ?? 1;
+            return BuildTargetUrl(token, tableId, tableNumber);
         }
 
         public async Task EnsureQrCodesForExistingTablesAsync()
@@ -256,7 +262,7 @@ namespace Cafe.Service
             foreach (var table in missingTables)
             {
                 var token = GenerateSecureToken();
-                var targetUrl = BuildTargetUrl(token);
+                var targetUrl = BuildTargetUrl(token, table.Id, table.Number);
                 var imageUrl = $"https://api.qrserver.com/v1/create-qr-code/?size=300x300&data={Uri.EscapeDataString(targetUrl)}";
 
                 var qr = new TableQrCode
@@ -282,7 +288,7 @@ namespace Cafe.Service
             bool updated = false;
             foreach (var q in activeQrs)
             {
-                var correctTargetUrl = BuildTargetUrl(q.Token);
+                var correctTargetUrl = BuildTargetUrl(q.Token, q.TableId, q.TableNumber);
                 var correctImageUrl = $"https://api.qrserver.com/v1/create-qr-code/?size=300x300&data={Uri.EscapeDataString(correctTargetUrl)}";
                 if (q.ImageUrl != correctImageUrl)
                 {

@@ -29,8 +29,6 @@ namespace Cafe.Service
 
         public async Task<List<StaffMemberDto>> GetAllStaffMembersAsync(bool activeOnly = true)
         {
-            await EnsureDefaultStaffMembersAsync();
-
             var query = _dbContext.StaffMembers.AsNoTracking().AsQueryable();
 
             if (activeOnly)
@@ -123,9 +121,6 @@ namespace Cafe.Service
 
         public async Task<List<OrderDto>> GetActiveDineInOrdersAsync()
         {
-            // Seed mock orders if empty
-            await _orderService.GetAllOrdersAsync();
-
             var inactiveStatuses = new[] { "served", "completed", "cancelled", "rejected" };
 
             var orders = await _dbContext.Orders
@@ -269,7 +264,7 @@ namespace Cafe.Service
                 Id = entity.Id.ToString(),
                 OrderNumber = entity.OrderNumber,
                 CustomerName = entity.CustomerName,
-                TableNumber = entity.TableNumber,
+                TableNumber = CustomerCartService.CleanTableNumber(entity.TableNumber),
                 ServiceType = entity.ServiceType,
                 PaymentStatus = entity.PaymentStatus,
                 PaymentMethod = entity.PaymentMethod,
@@ -287,23 +282,6 @@ namespace Cafe.Service
                 Notes = entity.Notes,
                 WaiterName = entity.WaiterName
             };
-        }
-
-        private async Task EnsureDefaultStaffMembersAsync()
-        {
-            if (await _dbContext.StaffMembers.AnyAsync()) return;
-
-            var defaultStaff = new List<StaffMember>
-            {
-                new StaffMember { Name = "Alex", Role = "Waiter", IsActive = true, CreatedAt = DateTime.UtcNow },
-                new StaffMember { Name = "Sarah", Role = "Waiter", IsActive = true, CreatedAt = DateTime.UtcNow },
-                new StaffMember { Name = "Mike", Role = "Waiter", IsActive = true, CreatedAt = DateTime.UtcNow },
-                new StaffMember { Name = "Jessica", Role = "Waiter", IsActive = true, CreatedAt = DateTime.UtcNow },
-                new StaffMember { Name = "Tom", Role = "Waiter", IsActive = true, CreatedAt = DateTime.UtcNow }
-            };
-
-            await _dbContext.StaffMembers.AddRangeAsync(defaultStaff);
-            await _dbContext.SaveChangesAsync();
         }
 
         #endregion

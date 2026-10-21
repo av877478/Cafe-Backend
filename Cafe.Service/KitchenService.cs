@@ -29,9 +29,6 @@ namespace Cafe.Service
 
         public async Task<KitchenBoardDto> GetKitchenBoardAsync()
         {
-            // Seed sample orders if none exist
-            await _orderService.GetAllOrdersAsync();
-
             var activeOrders = await _dbContext.Orders
                 .Include(o => o.Items)
                 .AsNoTracking()
@@ -62,9 +59,6 @@ namespace Cafe.Service
 
         public async Task<List<OrderDto>> GetActiveOrdersAsync()
         {
-            // Seed sample orders if none exist
-            await _orderService.GetAllOrdersAsync();
-
             var orders = await _dbContext.Orders
                 .Include(o => o.Items)
                 .AsNoTracking()

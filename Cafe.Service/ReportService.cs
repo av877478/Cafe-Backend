@@ -26,9 +26,6 @@ namespace Cafe.Service
 
         public async Task<ReportDashboardDto> GetReportDataAsync(string? range)
         {
-            // Seed mock orders if empty
-            await _orderService.GetAllOrdersAsync();
-
             var normalizedRange = NormalizeRange(range);
             var (startUtc, endUtc, priorStartUtc, priorEndUtc, multiplier) = GetRangeBounds(normalizedRange);
 
@@ -45,13 +42,6 @@ namespace Cafe.Service
                 .Where(o => o.OrderTime >= priorStartUtc && o.OrderTime <= priorEndUtc && o.Status != "Cancelled" && o.Status != "Rejected")
                 .ToListAsync();
 
-            // All historical orders as baseline fallback if range has few orders
-            var allOrders = await _dbContext.Orders
-                .Include(o => o.Items)
-                .AsNoTracking()
-                .Where(o => o.Status != "Cancelled" && o.Status != "Rejected")
-                .ToListAsync();
-
             // 1. Sales Summary
             decimal currentRevenue = currentOrders.Sum(o => o.Total);
             int currentTotalOrders = currentOrders.Count;
@@ -59,47 +49,34 @@ namespace Cafe.Service
             decimal priorRevenue = priorOrders.Sum(o => o.Total);
             int priorTotalOrders = priorOrders.Count;
 
-            // Baseline fallback for realistic cafe demonstration if fresh database
-            if (currentTotalOrders == 0 && allOrders.Count > 0)
-            {
-                currentRevenue = allOrders.Sum(o => o.Total) * multiplier;
-                currentTotalOrders = (allOrders.Count > 0 ? allOrders.Count : 1) * multiplier * 4;
-                priorRevenue = currentRevenue * 0.88m;
-                priorTotalOrders = (int)(currentTotalOrders * 0.92m);
-            }
-
             decimal avgOrderValue = currentTotalOrders > 0
                 ? Math.Round(currentRevenue / currentTotalOrders, 2)
-                : 11.55m;
+                : 0m;
 
             decimal revenueGrowth = priorRevenue > 0
                 ? Math.Round(((currentRevenue - priorRevenue) / priorRevenue) * 100m, 1)
-                : (normalizedRange == "Today" ? 12.5m : (normalizedRange == "This Week" ? -2.4m : 18.2m));
+                : 0m;
 
             decimal ordersGrowth = priorTotalOrders > 0
                 ? Math.Round(((decimal)(currentTotalOrders - priorTotalOrders) / priorTotalOrders) * 100m, 1)
-                : (normalizedRange == "Today" ? 8.4m : (normalizedRange == "This Week" ? 1.1m : 15.0m));
+                : 0m;
 
             // 2. Top Products
             var orderItems = currentOrders.SelectMany(o => o.Items).ToList();
-            if (orderItems.Count == 0)
-            {
-                orderItems = allOrders.SelectMany(o => o.Items).ToList();
-            }
 
             var productGroups = orderItems
                 .GroupBy(i => i.ProductName)
                 .Select(g => new
                 {
                     Name = g.Key,
-                    QuantitySold = g.Sum(i => i.Quantity) * multiplier,
-                    Revenue = g.Sum(i => i.TotalPrice) * multiplier
+                    QuantitySold = g.Sum(i => i.Quantity),
+                    Revenue = g.Sum(i => i.TotalPrice)
                 })
                 .OrderByDescending(p => p.QuantitySold)
                 .Take(5)
                 .ToList();
 
-            int maxProductQty = productGroups.Count > 0 ? productGroups.Max(p => p.QuantitySold) : 1;
+            int maxProductQty = productGroups.Count > 0 ? productGroups.Max(p => p.QuantitySold) : 0;
             var topProducts = productGroups.Select(p => new TopProductDto
             {
                 Name = p.Name,
@@ -108,26 +85,31 @@ namespace Cafe.Service
                 Percentage = maxProductQty > 0 ? Math.Round(((decimal)p.QuantitySold / maxProductQty) * 100m, 0) : 0
             }).ToList();
 
-            if (topProducts.Count == 0)
-            {
-                topProducts = GetDefaultTopProducts(multiplier);
-            }
-
-            // 3. Popular Categories
+            // 3. Popular Categories (based on existing categories & order items if available)
             var categories = await _dbContext.Categories.AsNoTracking().ToListAsync();
             var popularCategories = new List<TopProductDto>();
 
-            if (categories.Count > 0)
+            if (categories.Count > 0 && orderItems.Count > 0)
             {
-                var catStats = categories.Select(c => new
-                {
-                    c.Name,
-                    QuantitySold = Math.Max(c.ItemCount * multiplier * 4, 15 * multiplier),
-                    Revenue = Math.Max(c.ItemCount * 12.5m * multiplier * 4, 85m * multiplier)
-                }).OrderByDescending(c => c.QuantitySold).Take(4).ToList();
+                var products = await _dbContext.Products.AsNoTracking().ToListAsync();
+                var productCatMap = products
+                    .GroupBy(p => p.Name, StringComparer.OrdinalIgnoreCase)
+                    .ToDictionary(g => g.Key, g => g.First().CategoryName ?? "Other", StringComparer.OrdinalIgnoreCase);
 
-                int maxCatQty = catStats.Max(c => c.QuantitySold);
-                popularCategories = catStats.Select(c => new TopProductDto
+                var catGroups = orderItems
+                    .GroupBy(i => productCatMap.TryGetValue(i.ProductName, out var c) ? c : "Other")
+                    .Select(g => new
+                    {
+                        Name = g.Key,
+                        QuantitySold = g.Sum(i => i.Quantity),
+                        Revenue = g.Sum(i => i.TotalPrice)
+                    })
+                    .OrderByDescending(c => c.QuantitySold)
+                    .Take(4)
+                    .ToList();
+
+                int maxCatQty = catGroups.Count > 0 ? catGroups.Max(c => c.QuantitySold) : 0;
+                popularCategories = catGroups.Select(c => new TopProductDto
                 {
                     Name = c.Name,
                     QuantitySold = c.QuantitySold,
@@ -136,19 +118,13 @@ namespace Cafe.Service
                 }).ToList();
             }
 
-            if (popularCategories.Count == 0)
-            {
-                popularCategories = GetDefaultPopularCategories(multiplier);
-            }
-
             // 4. Payment Breakdown
-            var paymentOrders = currentOrders.Count > 0 ? currentOrders : allOrders;
-            var paymentGroups = paymentOrders
+            var paymentGroups = currentOrders
                 .GroupBy(o => string.IsNullOrWhiteSpace(o.PaymentMethod) ? "Card" : o.PaymentMethod)
                 .Select(g => new
                 {
                     Method = g.Key,
-                    Amount = g.Sum(o => o.Total) * multiplier
+                    Amount = g.Sum(o => o.Total)
                 })
                 .ToList();
 
@@ -160,31 +136,15 @@ namespace Cafe.Service
                 Percentage = totalPaymentAmount > 0 ? Math.Round((p.Amount / totalPaymentAmount) * 100m, 0) : 0
             }).OrderByDescending(p => p.Amount).ToList();
 
-            if (paymentBreakdown.Count == 0)
-            {
-                paymentBreakdown = GetDefaultPaymentBreakdown(multiplier);
-            }
-
             // 5. Peak Hours (7 AM to 3 PM cafe operation)
             var hourLabels = new[] { "7a", "8a", "9a", "10a", "11a", "12p", "1p", "2p", "3p" };
-            var hourDistribution = new Dictionary<string, int>
-            {
-                { "7a", 5 * multiplier },
-                { "8a", 12 * multiplier },
-                { "9a", 20 * multiplier },
-                { "10a", 15 * multiplier },
-                { "11a", 8 * multiplier },
-                { "12p", 18 * multiplier },
-                { "1p", 14 * multiplier },
-                { "2p", 6 * multiplier },
-                { "3p", 4 * multiplier }
-            };
+            var hourDistribution = hourLabels.ToDictionary(lbl => lbl, _ => 0);
 
             // Incorporate real order hours if present
             foreach (var order in currentOrders)
             {
                 int h = order.OrderTime.Hour;
-                string label = h switch
+                string? label = h switch
                 {
                     7 => "7a",
                     8 => "8a",
@@ -195,10 +155,10 @@ namespace Cafe.Service
                     13 => "1p",
                     14 => "2p",
                     15 => "3p",
-                    _ => "9a"
+                    _ => null
                 };
 
-                if (hourDistribution.ContainsKey(label))
+                if (label != null && hourDistribution.ContainsKey(label))
                 {
                     hourDistribution[label] += 1;
                 }
@@ -213,37 +173,24 @@ namespace Cafe.Service
             }).ToList();
 
             var peakHourItem = peakHours.OrderByDescending(h => h.OrderCount).FirstOrDefault();
-            string peakHourLabel = peakHourItem != null ? ConvertHourLabel(peakHourItem.HourLabel) : "9:00 AM";
+            string peakHourLabel = (peakHourItem != null && peakHourItem.OrderCount > 0)
+                ? ConvertHourLabel(peakHourItem.HourLabel)
+                : "None";
 
             // 6. Table Performance
             var tableOrders = currentOrders.Where(o => !string.IsNullOrWhiteSpace(o.TableNumber)).ToList();
-            if (tableOrders.Count == 0)
-            {
-                tableOrders = allOrders.Where(o => !string.IsNullOrWhiteSpace(o.TableNumber)).ToList();
-            }
 
             var tablePerformance = tableOrders
                 .GroupBy(o => o.TableNumber!)
                 .Select(g => new TablePerformanceDto
                 {
                     TableNumber = $"Table {g.Key}",
-                    OrderCount = g.Count() * multiplier,
-                    Revenue = g.Sum(o => o.Total) * multiplier
+                    OrderCount = g.Count(),
+                    Revenue = g.Sum(o => o.Total)
                 })
                 .OrderByDescending(t => t.Revenue)
                 .Take(5)
                 .ToList();
-
-            if (tablePerformance.Count == 0)
-            {
-                tablePerformance = new List<TablePerformanceDto>
-                {
-                    new TablePerformanceDto { TableNumber = "Table 4 (Window)", OrderCount = 8 * multiplier, Revenue = 145m * multiplier },
-                    new TablePerformanceDto { TableNumber = "Table 2 (Booth)", OrderCount = 6 * multiplier, Revenue = 110m * multiplier },
-                    new TablePerformanceDto { TableNumber = "Table 1", OrderCount = 5 * multiplier, Revenue = 85m * multiplier },
-                    new TablePerformanceDto { TableNumber = "Table 7 (Patio)", OrderCount = 4 * multiplier, Revenue = 65m * multiplier }
-                };
-            }
 
             return new ReportDashboardDto
             {
@@ -385,40 +332,6 @@ namespace Cafe.Service
                 "2p" => "2:00 PM",
                 "3p" => "3:00 PM",
                 _ => "9:00 AM"
-            };
-        }
-
-        private static List<TopProductDto> GetDefaultTopProducts(int multiplier)
-        {
-            return new List<TopProductDto>
-            {
-                new TopProductDto { Name = "Caramel Macchiato", QuantitySold = 18 * multiplier, Revenue = 98.10m * multiplier, Percentage = 100 },
-                new TopProductDto { Name = "Iced Latte", QuantitySold = 15 * multiplier, Revenue = 59.25m * multiplier, Percentage = 83 },
-                new TopProductDto { Name = "Avocado Toast", QuantitySold = 12 * multiplier, Revenue = 84.00m * multiplier, Percentage = 66 },
-                new TopProductDto { Name = "Cappuccino", QuantitySold = 9 * multiplier, Revenue = 40.50m * multiplier, Percentage = 50 },
-                new TopProductDto { Name = "Blueberry Muffin", QuantitySold = 7 * multiplier, Revenue = 24.50m * multiplier, Percentage = 38 }
-            };
-        }
-
-        private static List<TopProductDto> GetDefaultPopularCategories(int multiplier)
-        {
-            return new List<TopProductDto>
-            {
-                new TopProductDto { Name = "Espresso Bar", QuantitySold = 45 * multiplier, Revenue = 220m * multiplier, Percentage = 100 },
-                new TopProductDto { Name = "Breakfast", QuantitySold = 28 * multiplier, Revenue = 195m * multiplier, Percentage = 62 },
-                new TopProductDto { Name = "Pastries", QuantitySold = 22 * multiplier, Revenue = 85m * multiplier, Percentage = 48 },
-                new TopProductDto { Name = "Cold Brews", QuantitySold = 15 * multiplier, Revenue = 65m * multiplier, Percentage = 33 }
-            };
-        }
-
-        private static List<PaymentBreakdownDto> GetDefaultPaymentBreakdown(int multiplier)
-        {
-            return new List<PaymentBreakdownDto>
-            {
-                new PaymentBreakdownDto { Method = "Card", Amount = 280m * multiplier, Percentage = 58 },
-                new PaymentBreakdownDto { Method = "Online / App", Amount = 120m * multiplier, Percentage = 25 },
-                new PaymentBreakdownDto { Method = "Cash", Amount = 60m * multiplier, Percentage = 12 },
-                new PaymentBreakdownDto { Method = "UPI", Amount = 25.5m * multiplier, Percentage = 5 }
             };
         }
 

@@ -206,13 +206,13 @@ namespace Cafe.Web.Controllers
         {
             try
             {
-                var (success, tableNumber, message) = await _qrCodeRepository.ResolveTokenAsync(token);
+                var (success, tableNumber, tableId, message) = await _qrCodeRepository.ResolveTokenAsync(token);
                 if (!success)
                 {
                     return BadRequest(new { success = false, message = message ?? "Invalid or expired QR code." });
                 }
 
-                return Ok(new { success = true, tableNumber });
+                return Ok(new { success = true, tableNumber, tableId });
             }
             catch (Exception ex)
             {

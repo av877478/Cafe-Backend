@@ -21,9 +21,6 @@ namespace Cafe.Service
 
         public async Task<List<CategoryDto>> GetAllCategoriesAsync(string? statusFilter = null, string? search = null)
         {
-            // Seed initial categories if database is completely empty
-            await EnsureDefaultCategoriesAsync();
-
             var query = _dbContext.Categories.AsNoTracking();
 
             // Status filtering: All, Active, Inactive
@@ -153,56 +150,7 @@ namespace Cafe.Service
 
         #endregion
 
-        #region Seed Helpers
-
-        private async Task EnsureDefaultCategoriesAsync()
-        {
-            if (!await _dbContext.Categories.AnyAsync())
-            {
-                var defaultCategories = new List<Category>
-                {
-                    new Category
-                    {
-                        Name = "Hot Coffees",
-                        Description = "Espresso, Americano, Cappuccino, Latte, Mocha, and Macchiato.",
-                        ImageUrl = "https://images.unsplash.com/photo-1541167760496-1628856ab772?q=80&w=600&auto=format&fit=crop",
-                        IsActive = true,
-                        ItemCount = 12,
-                        CreatedAt = DateTime.UtcNow
-                    },
-                    new Category
-                    {
-                        Name = "Cold Brews",
-                        Description = "Refreshing cold brew, iced lattes, and frappes for a hot day.",
-                        ImageUrl = "https://images.unsplash.com/photo-1517701550927-30cfcb64728c?q=80&w=600&auto=format&fit=crop",
-                        IsActive = true,
-                        ItemCount = 8,
-                        CreatedAt = DateTime.UtcNow
-                    },
-                    new Category
-                    {
-                        Name = "Pastries & Bakery",
-                        Description = "Freshly baked croissants, muffins, cookies, and artisanal breads.",
-                        ImageUrl = "https://images.unsplash.com/photo-1509440159596-0249088772ff?q=80&w=600&auto=format&fit=crop",
-                        IsActive = true,
-                        ItemCount = 15,
-                        CreatedAt = DateTime.UtcNow
-                    },
-                    new Category
-                    {
-                        Name = "Sandwiches",
-                        Description = "Gourmet sandwiches, paninis, and wraps made to order.",
-                        ImageUrl = "https://images.unsplash.com/photo-1528735602780-2552fd46c7af?q=80&w=600&auto=format&fit=crop",
-                        IsActive = false,
-                        ItemCount = 6,
-                        CreatedAt = DateTime.UtcNow
-                    }
-                };
-
-                await _dbContext.Categories.AddRangeAsync(defaultCategories);
-                await _dbContext.SaveChangesAsync();
-            }
-        }
+        #region Helpers
 
         public static CategoryDto MapToDto(Category c)
         {

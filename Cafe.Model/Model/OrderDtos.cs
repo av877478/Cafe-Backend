@@ -84,6 +84,8 @@ namespace Cafe.Model.Model
 
         public decimal Total { get; set; }
 
+        public string? GuestId { get; set; }
+
         public string? Notes { get; set; }
 
         public List<CreateOrderItemDto> Items { get; set; } = new();

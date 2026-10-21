@@ -33,9 +33,6 @@ namespace Cafe.Service
             string? tableNumber = null,
             string? search = null)
         {
-            // Seed initial mock orders if database is empty
-            await EnsureDefaultOrdersAsync();
-
             var query = _dbContext.Orders
                 .Include(o => o.Items)
                 .AsNoTracking()
@@ -128,11 +125,24 @@ namespace Cafe.Service
                 total = Math.Round(subtotal + tax, 2);
             }
 
+            string? tableNumber = CustomerCartService.CleanTableNumber(dto.TableNumber);
+            if (string.Equals(dto.ServiceType?.Trim(), "Takeaway", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(dto.ServiceType?.Trim(), "Delivery", StringComparison.OrdinalIgnoreCase))
+            {
+                tableNumber = null;
+            }
+
+            var notes = dto.Notes?.Trim();
+            if (!string.IsNullOrWhiteSpace(dto.GuestId) && !(notes != null && notes.Contains(dto.GuestId)))
+            {
+                notes = string.IsNullOrWhiteSpace(notes) ? $"[GuestId: {dto.GuestId.Trim()}]" : $"{notes} [GuestId: {dto.GuestId.Trim()}]";
+            }
+
             var order = new Order
             {
                 OrderNumber = orderNumber,
                 CustomerName = customerName,
-                TableNumber = string.IsNullOrWhiteSpace(dto.TableNumber) ? null : dto.TableNumber.Trim(),
+                TableNumber = tableNumber,
                 ServiceType = string.IsNullOrWhiteSpace(dto.ServiceType) ? "Dine-In" : dto.ServiceType.Trim(),
                 PaymentStatus = string.IsNullOrWhiteSpace(dto.PaymentStatus) ? "Pending" : dto.PaymentStatus.Trim(),
                 PaymentMethod = string.IsNullOrWhiteSpace(dto.PaymentMethod) ? "Online" : dto.PaymentMethod.Trim(),
@@ -142,7 +152,7 @@ namespace Cafe.Service
                 Subtotal = subtotal,
                 Tax = tax,
                 Total = total,
-                Notes = dto.Notes?.Trim(),
+                Notes = notes,
                 CreatedAt = DateTime.UtcNow
             };
 
@@ -286,8 +296,6 @@ namespace Cafe.Service
 
         public async Task<List<OrderDto>> GetCustomerOrdersAsync(string customerName)
         {
-            await EnsureDefaultOrdersAsync();
-
             var trimmed = customerName.Trim().ToLower();
             var orders = await _dbContext.Orders
                 .Include(o => o.Items)
@@ -410,7 +418,7 @@ namespace Cafe.Service
                 Id = entity.Id.ToString(),
                 OrderNumber = entity.OrderNumber,
                 CustomerName = entity.CustomerName,
-                TableNumber = entity.TableNumber,
+                TableNumber = CustomerCartService.CleanTableNumber(entity.TableNumber),
                 ServiceType = entity.ServiceType,
                 PaymentStatus = entity.PaymentStatus,
                 PaymentMethod = entity.PaymentMethod,
@@ -428,300 +436,6 @@ namespace Cafe.Service
                 Notes = entity.Notes,
                 WaiterName = entity.WaiterName
             };
-        }
-
-        private async Task EnsureDefaultOrdersAsync()
-        {
-            var now = DateTime.UtcNow;
-
-            if (!await _dbContext.Orders.AnyAsync())
-            {
-
-            var defaultOrders = new List<Order>
-            {
-                new Order
-                {
-                    OrderNumber = "ORD-1001",
-                    CustomerName = "Alice Smith",
-                    TableNumber = "4",
-                    ServiceType = "Dine-In",
-                    PaymentStatus = "Paid",
-                    PaymentMethod = "Card",
-                    TransactionId = "TXN-934827",
-                    Status = "Preparing",
-                    OrderTime = now.AddMinutes(-15),
-                    Subtotal = 10.90m,
-                    Tax = 0.87m,
-                    Total = 11.77m,
-                    CreatedAt = now.AddMinutes(-15),
-                    Items = new List<OrderItem>
-                    {
-                        new OrderItem
-                        {
-                            ProductId = "1",
-                            ProductName = "Caramel Macchiato",
-                            Quantity = 2,
-                            UnitPrice = 5.45m,
-                            TotalPrice = 10.90m,
-                            CustomizationsJson = JsonSerializer.Serialize(new[] { "Size: Grande (Medium)", "Extra Espresso Shot" }, JsonOptions)
-                        }
-                    }
-                },
-                new Order
-                {
-                    OrderNumber = "ORD-1002",
-                    CustomerName = "Bob Johnson",
-                    TableNumber = null,
-                    ServiceType = "Takeaway",
-                    PaymentStatus = "Pending",
-                    PaymentMethod = "Online",
-                    TransactionId = "TXN-882193",
-                    Status = "New",
-                    OrderTime = now.AddMinutes(-2),
-                    Subtotal = 3.95m,
-                    Tax = 0.32m,
-                    Total = 4.27m,
-                    CreatedAt = now.AddMinutes(-2),
-                    Items = new List<OrderItem>
-                    {
-                        new OrderItem
-                        {
-                            ProductId = "2",
-                            ProductName = "Iced Latte",
-                            Quantity = 1,
-                            UnitPrice = 3.95m,
-                            TotalPrice = 3.95m,
-                            CustomizationsJson = JsonSerializer.Serialize(new[] { "Size: Tall (Small)", "Oat Milk" }, JsonOptions)
-                        }
-                    }
-                },
-                new Order
-                {
-                    OrderNumber = "ORD-1005",
-                    CustomerName = "Eve Carter",
-                    TableNumber = "1",
-                    ServiceType = "Dine-In",
-                    PaymentStatus = "Paid",
-                    PaymentMethod = "Card",
-                    TransactionId = "TXN-934827",
-                    Status = "Confirmed",
-                    OrderTime = now.AddMinutes(-1),
-                    Subtotal = 10.90m,
-                    Tax = 0.87m,
-                    Total = 11.77m,
-                    EstimatedPrepTime = 10,
-                    ConfirmedTime = now.AddMinutes(-1),
-                    Notes = "Allergy: Dairy. Please use clean frother.",
-                    CreatedAt = now.AddMinutes(-1),
-                    Items = new List<OrderItem>
-                    {
-                        new OrderItem
-                        {
-                            ProductId = "1",
-                            ProductName = "Caramel Macchiato",
-                            Quantity = 2,
-                            UnitPrice = 5.45m,
-                            TotalPrice = 10.90m,
-                            CustomizationsJson = JsonSerializer.Serialize(new[] { "Size: Grande" }, JsonOptions)
-                        }
-                    }
-                },
-                new Order
-                {
-                    OrderNumber = "ORD-1003",
-                    CustomerName = "Charlie Davis",
-                    TableNumber = "2",
-                    ServiceType = "Dine-In",
-                    PaymentStatus = "Paid",
-                    PaymentMethod = "Card",
-                    TransactionId = "TXN-934827",
-                    Status = "Ready",
-                    OrderTime = now.AddMinutes(-30),
-                    Subtotal = 7.45m,
-                    Tax = 0.60m,
-                    Total = 8.05m,
-                    CreatedAt = now.AddMinutes(-30),
-                    Items = new List<OrderItem>
-                    {
-                        new OrderItem
-                        {
-                            ProductId = "4",
-                            ProductName = "Turkey Panini",
-                            Quantity = 1,
-                            UnitPrice = 7.45m,
-                            TotalPrice = 7.45m,
-                            CustomizationsJson = null
-                        }
-                    }
-                },
-                new Order
-                {
-                    OrderNumber = "ORD-1004",
-                    CustomerName = "Diana Prince",
-                    TableNumber = null,
-                    ServiceType = "Delivery",
-                    PaymentStatus = "Paid",
-                    PaymentMethod = "Card",
-                    TransactionId = "TXN-934827",
-                    Status = "Picked Up",
-                    OrderTime = now.AddHours(-1),
-                    Subtotal = 18.35m,
-                    Tax = 1.47m,
-                    Total = 19.82m,
-                    CreatedAt = now.AddHours(-1),
-                    Items = new List<OrderItem>
-                    {
-                        new OrderItem
-                        {
-                            ProductId = "1",
-                            ProductName = "Caramel Macchiato",
-                            Quantity = 1,
-                            UnitPrice = 5.45m,
-                            TotalPrice = 5.45m,
-                            CustomizationsJson = JsonSerializer.Serialize(new[] { "Size: Grande (Medium)" }, JsonOptions)
-                        },
-                        new OrderItem
-                        {
-                            ProductId = "4",
-                            ProductName = "Turkey Panini",
-                            Quantity = 1,
-                            UnitPrice = 7.45m,
-                            TotalPrice = 7.45m,
-                            CustomizationsJson = null
-                        },
-                        new OrderItem
-                        {
-                            ProductId = "3",
-                            ProductName = "Butter Croissant",
-                            Quantity = 1,
-                            UnitPrice = 5.45m,
-                            TotalPrice = 5.45m,
-                            CustomizationsJson = JsonSerializer.Serialize(new[] { "Warmed" }, JsonOptions)
-                        }
-                    }
-                }
-            };
-
-                await _dbContext.Orders.AddRangeAsync(defaultOrders);
-                await _dbContext.SaveChangesAsync();
-            }
-
-            if (!await _dbContext.Orders.AnyAsync(o => o.CustomerName.ToLower() == "google user"))
-            {
-                var googleOrders = new List<Order>
-                {
-                    new Order
-                    {
-                        OrderNumber = "ORD-1006",
-                        CustomerName = "Google User",
-                        TableNumber = "3",
-                        ServiceType = "Dine-In",
-                        PaymentStatus = "Paid",
-                        PaymentMethod = "Online",
-                        TransactionId = "TXN-GGL-88124",
-                        Status = "Completed",
-                        OrderTime = now.AddDays(-2).AddHours(2),
-                        CompletedTime = now.AddDays(-2).AddHours(2).AddMinutes(25),
-                        Subtotal = 10.90m,
-                        Tax = 0.87m,
-                        Total = 11.77m,
-                        CreatedAt = now.AddDays(-2).AddHours(2),
-                        Items = new List<OrderItem>
-                        {
-                            new OrderItem
-                            {
-                                ProductId = "1",
-                                ProductName = "Caramel Macchiato",
-                                Quantity = 2,
-                                UnitPrice = 5.45m,
-                                TotalPrice = 10.90m,
-                                CustomizationsJson = JsonSerializer.Serialize(new[] { "Size: Grande (Medium)", "Extra Espresso Shot" }, JsonOptions)
-                            }
-                        }
-                    },
-                    new Order
-                    {
-                        OrderNumber = "ORD-1007",
-                        CustomerName = "Google User",
-                        TableNumber = null,
-                        ServiceType = "Takeaway",
-                        PaymentStatus = "Paid",
-                        PaymentMethod = "Online",
-                        TransactionId = "TXN-GGL-99341",
-                        Status = "Completed",
-                        OrderTime = now.AddDays(-1).AddHours(-4),
-                        CompletedTime = now.AddDays(-1).AddHours(-4).AddMinutes(15),
-                        Subtotal = 9.40m,
-                        Tax = 0.75m,
-                        Total = 10.15m,
-                        CreatedAt = now.AddDays(-1).AddHours(-4),
-                        Items = new List<OrderItem>
-                        {
-                            new OrderItem
-                            {
-                                ProductId = "2",
-                                ProductName = "Iced Latte",
-                                Quantity = 1,
-                                UnitPrice = 3.95m,
-                                TotalPrice = 3.95m,
-                                CustomizationsJson = JsonSerializer.Serialize(new[] { "Size: Tall (Small)", "Oat Milk" }, JsonOptions)
-                            },
-                            new OrderItem
-                            {
-                                ProductId = "3",
-                                ProductName = "Butter Croissant",
-                                Quantity = 1,
-                                UnitPrice = 5.45m,
-                                TotalPrice = 5.45m,
-                                CustomizationsJson = JsonSerializer.Serialize(new[] { "Warmed" }, JsonOptions)
-                            }
-                        }
-                    },
-                    new Order
-                    {
-                        OrderNumber = "ORD-1008",
-                        CustomerName = "Google User",
-                        TableNumber = "5",
-                        ServiceType = "Dine-In",
-                        PaymentStatus = "Paid",
-                        PaymentMethod = "Online",
-                        TransactionId = "TXN-GGL-10492",
-                        Status = "Preparing",
-                        OrderTime = now.AddMinutes(-8),
-                        ConfirmedTime = now.AddMinutes(-6),
-                        EstimatedPrepTime = 15,
-                        Subtotal = 12.90m,
-                        Tax = 1.03m,
-                        Total = 13.93m,
-                        Notes = "Please bring extra napkins.",
-                        CreatedAt = now.AddMinutes(-8),
-                        Items = new List<OrderItem>
-                        {
-                            new OrderItem
-                            {
-                                ProductId = "4",
-                                ProductName = "Turkey Panini",
-                                Quantity = 1,
-                                UnitPrice = 7.45m,
-                                TotalPrice = 7.45m,
-                                CustomizationsJson = null
-                            },
-                            new OrderItem
-                            {
-                                ProductId = "1",
-                                ProductName = "Caramel Macchiato",
-                                Quantity = 1,
-                                UnitPrice = 5.45m,
-                                TotalPrice = 5.45m,
-                                CustomizationsJson = JsonSerializer.Serialize(new[] { "Size: Tall" }, JsonOptions)
-                            }
-                        }
-                    }
-                };
-
-                await _dbContext.Orders.AddRangeAsync(googleOrders);
-                await _dbContext.SaveChangesAsync();
-            }
         }
 
         #endregion

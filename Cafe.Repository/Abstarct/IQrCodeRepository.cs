@@ -12,6 +12,6 @@ namespace Cafe.Repository.Abstarct
         Task<QRCodeDataDto> GenerateOrRegenerateQrAsync(int tableId, int tableNumber);
         Task<bool> RevokeQrCodeAsync(int id);
         byte[] GenerateQrPngBytes(string token);
-        Task<(bool Success, string? TableNumber, string? Message)> ResolveTokenAsync(string token);
+        Task<(bool Success, string? TableNumber, string? TableId, string? Message)> ResolveTokenAsync(string token);
     }
 }
