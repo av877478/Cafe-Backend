@@ -152,6 +152,25 @@ namespace Cafe.Web.Controllers
         }
 
         /// <summary>
+        /// Deletes all categories from the database.
+        /// Routes: DELETE /api/category/all, DELETE /api/categories/all
+        /// </summary>
+        [HttpDelete("all")]
+        [ProducesResponseType(200)]
+        public async Task<IActionResult> DeleteAllCategories()
+        {
+            try
+            {
+                var count = await _categoryRepository.DeleteAllCategoriesAsync();
+                return Ok(new { success = true, count, message = $"All {count} categories deleted successfully." });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Failed to delete all categories.", error = ex.Message });
+            }
+        }
+
+        /// <summary>
         /// Deletes a category by ID.
         /// Routes: DELETE /api/category/{id}, DELETE /api/categories/{id}
         /// </summary>

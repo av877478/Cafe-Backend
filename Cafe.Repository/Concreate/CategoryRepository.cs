@@ -44,5 +44,10 @@ namespace Cafe.Repository.Concreate
         {
             return await _categoryService.DeleteCategoryAsync(id);
         }
+
+        public async Task<int> DeleteAllCategoriesAsync()
+        {
+            return await _categoryService.DeleteAllCategoriesAsync();
+        }
     }
 }

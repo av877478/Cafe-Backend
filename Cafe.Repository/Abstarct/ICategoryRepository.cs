@@ -12,5 +12,6 @@ namespace Cafe.Repository.Abstarct
         Task<CategoryDto> UpdateCategoryAsync(int id, UpdateCategoryDto dto);
         Task<CategoryDto> UpdateCategoryStatusAsync(int id, bool isActive);
         Task<bool> DeleteCategoryAsync(int id);
+        Task<int> DeleteAllCategoriesAsync();
     }
 }

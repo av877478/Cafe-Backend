@@ -148,6 +148,18 @@ namespace Cafe.Service
             return true;
         }
 
+        public async Task<int> DeleteAllCategoriesAsync()
+        {
+            var all = await _dbContext.Categories.ToListAsync();
+            var count = all.Count;
+            if (count > 0)
+            {
+                _dbContext.Categories.RemoveRange(all);
+                await _dbContext.SaveChangesAsync();
+            }
+            return count;
+        }
+
         #endregion
 
         #region Helpers
