@@ -42,6 +42,10 @@ builder.Services.AddScoped<ICategoryRepository, CategoryRepository>();
 builder.Services.AddScoped<ProductService>();
 builder.Services.AddScoped<IProductRepository, ProductRepository>();
 
+builder.Services.AddScoped<IFileStorageService, LocalFileStorageService>();
+builder.Services.AddScoped<ProductVisualizationService>();
+builder.Services.AddScoped<IProductVisualizationRepository, ProductVisualizationRepository>();
+
 builder.Services.AddScoped<OrderService>();
 builder.Services.AddScoped<IOrderRepository, OrderRepository>();
 
@@ -187,6 +191,29 @@ if (!app.Environment.IsProduction())
 
 app.UseCors("AllowFrontend");
 
+// Configure Static Files with 3D model & all modern image MIME types
+var contentTypeProvider = new Microsoft.AspNetCore.StaticFiles.FileExtensionContentTypeProvider();
+contentTypeProvider.Mappings[".glb"] = "model/gltf-binary";
+contentTypeProvider.Mappings[".gltf"] = "model/gltf+json";
+contentTypeProvider.Mappings[".usdz"] = "model/vnd.usdz+zip";
+contentTypeProvider.Mappings[".bin"] = "application/octet-stream";
+contentTypeProvider.Mappings[".webp"] = "image/webp";
+contentTypeProvider.Mappings[".avif"] = "image/avif";
+contentTypeProvider.Mappings[".heic"] = "image/heic";
+contentTypeProvider.Mappings[".heif"] = "image/heif";
+contentTypeProvider.Mappings[".svg"] = "image/svg+xml";
+
+// Ensure upload folders exist
+var uploadsModelsPath = Path.Combine(app.Environment.ContentRootPath, "wwwroot", "uploads", "models");
+var uploadsImagesPath = Path.Combine(app.Environment.ContentRootPath, "wwwroot", "uploads", "images");
+Directory.CreateDirectory(uploadsModelsPath);
+Directory.CreateDirectory(uploadsImagesPath);
+
+app.UseStaticFiles(new StaticFileOptions
+{
+    ContentTypeProvider = contentTypeProvider
+});
+
 if (app.Environment.IsProduction())
 {
     app.UseHttpsRedirection();
@@ -194,6 +221,35 @@ if (app.Environment.IsProduction())
 
 app.UseAuthentication();
 app.UseAuthorization();
+
+// Ensure ProductVisualizations Table Exists
+using (var scope = app.Services.CreateScope())
+{
+    try
+    {
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        db.Database.ExecuteSqlRaw(@"
+            CREATE TABLE IF NOT EXISTS ""ProductVisualizations"" (
+                ""Id"" SERIAL PRIMARY KEY,
+                ""ProductId"" INTEGER NOT NULL UNIQUE,
+                ""ProductImageUrl"" VARCHAR(1000) NULL,
+                ""Model3DUrl"" VARCHAR(1000) NULL,
+                ""UsdzModelUrl"" VARCHAR(1000) NULL,
+                ""Is3DEnabled"" BOOLEAN NOT NULL DEFAULT TRUE,
+                ""IsAREnabled"" BOOLEAN NOT NULL DEFAULT TRUE,
+                ""IsAutoRotateEnabled"" BOOLEAN NOT NULL DEFAULT TRUE,
+                ""CreatedAt"" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                ""UpdatedAt"" TIMESTAMP WITH TIME ZONE NULL,
+                CONSTRAINT ""FK_ProductVisualizations_Products_ProductId"" FOREIGN KEY (""ProductId"") REFERENCES ""Products"" (""Id"") ON DELETE CASCADE
+            );
+        ");
+    }
+    catch (Exception ex)
+    {
+        var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+        logger.LogWarning(ex, "ProductVisualizations table setup check");
+    }
+}
 
 app.MapControllers();
 

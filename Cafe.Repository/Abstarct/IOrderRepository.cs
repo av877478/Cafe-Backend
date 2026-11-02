@@ -22,6 +22,7 @@ namespace Cafe.Repository.Abstarct
         Task<OrderDto> AssignWaiterAsync(string idOrNumber, string waiterName);
         Task<OrderDto> UpdatePaymentStatusAsync(string idOrNumber, string paymentStatus, string? paymentMethod = null, string? transactionId = null);
         Task<bool> DeleteOrderAsync(string idOrNumber);
+        Task<int> DeleteAllOrdersAsync();
         Task<List<OrderDto>> GetCustomerOrdersAsync(string customerName);
         Task<OrderDto> CancelCustomerOrderAsync(string idOrNumber, string? reason);
         Task<ReorderResponseDto> GetReorderDetailsAsync(string idOrNumber);

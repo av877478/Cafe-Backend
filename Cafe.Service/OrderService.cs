@@ -294,6 +294,18 @@ namespace Cafe.Service
             return true;
         }
 
+        public async Task<int> DeleteAllOrdersAsync()
+        {
+            var count = await _dbContext.Orders.CountAsync();
+            if (count > 0)
+            {
+                _dbContext.OrderItems.RemoveRange(_dbContext.OrderItems);
+                _dbContext.Orders.RemoveRange(_dbContext.Orders);
+                await _dbContext.SaveChangesAsync();
+            }
+            return count;
+        }
+
         public async Task<List<OrderDto>> GetCustomerOrdersAsync(string customerName)
         {
             var trimmed = customerName.Trim().ToLower();

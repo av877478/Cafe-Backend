@@ -66,6 +66,11 @@ namespace Cafe.Repository.Concreate
             return await _orderService.DeleteOrderAsync(idOrNumber);
         }
 
+        public async Task<int> DeleteAllOrdersAsync()
+        {
+            return await _orderService.DeleteAllOrdersAsync();
+        }
+
         public async Task<List<OrderDto>> GetCustomerOrdersAsync(string customerName)
         {
             return await _orderService.GetCustomerOrdersAsync(customerName);

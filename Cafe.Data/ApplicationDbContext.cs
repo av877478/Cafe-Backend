@@ -20,6 +20,7 @@ namespace Cafe.Data
         public DbSet<OrderItem> OrderItems { get; set; } = null!;
         public DbSet<StaffMember> StaffMembers { get; set; } = null!;
         public DbSet<CafeSetting> Settings { get; set; } = null!;
+        public DbSet<ProductVisualization> ProductVisualizations { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -88,6 +89,23 @@ namespace Cafe.Data
                 entity.Property(e => e.IsFeatured).HasDefaultValue(false);
                 entity.Property(e => e.IsPopular).HasDefaultValue(false);
                 entity.Property(e => e.PreparationTime).HasDefaultValue(5);
+            });
+
+            modelBuilder.Entity<ProductVisualization>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.HasIndex(e => e.ProductId).IsUnique();
+                entity.Property(e => e.ProductImageUrl).HasMaxLength(1000);
+                entity.Property(e => e.Model3DUrl).HasMaxLength(1000);
+                entity.Property(e => e.UsdzModelUrl).HasMaxLength(1000);
+                entity.Property(e => e.Is3DEnabled).HasDefaultValue(true);
+                entity.Property(e => e.IsAREnabled).HasDefaultValue(true);
+                entity.Property(e => e.IsAutoRotateEnabled).HasDefaultValue(true);
+
+                entity.HasOne(e => e.Product)
+                      .WithMany()
+                      .HasForeignKey(e => e.ProductId)
+                      .OnDelete(DeleteBehavior.Cascade);
             });
 
             modelBuilder.Entity<Order>(entity =>

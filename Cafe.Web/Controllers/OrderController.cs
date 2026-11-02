@@ -271,6 +271,26 @@ namespace Cafe.Web.Controllers
         }
 
         /// <summary>
+        /// Permanently deletes all orders and order items from the database.
+        /// Routes: DELETE /api/order/all, DELETE /api/orders/all, POST /api/orders/clear-all
+        /// </summary>
+        [HttpDelete("all")]
+        [HttpPost("clear-all")]
+        [ProducesResponseType(200)]
+        public async Task<IActionResult> DeleteAllOrders()
+        {
+            try
+            {
+                var deletedCount = await _orderRepository.DeleteAllOrdersAsync();
+                return Ok(new { success = true, deletedCount, message = $"Successfully deleted {deletedCount} order(s) permanently." });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Failed to delete all orders.", error = ex.Message });
+            }
+        }
+
+        /// <summary>
         /// Retrieves past orders for a specific customer by name (for customer profile orders tab).
         /// Routes: GET /api/orders/customer/{customerName}, GET /api/customer/orders/customer/{customerName}
         /// </summary>
