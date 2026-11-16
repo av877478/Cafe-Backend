@@ -20,7 +20,7 @@ namespace Cafe.Model.Model
 
         // Financial
         public decimal TaxRate { get; set; } = 8.0m;
-        public string Currency { get; set; } = "USD";
+        public string Currency { get; set; } = "INR";
         public bool AcceptCash { get; set; } = true;
         public bool AcceptCard { get; set; } = true;
         public bool AcceptUpi { get; set; } = true;

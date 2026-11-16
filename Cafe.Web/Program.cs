@@ -70,6 +70,9 @@ builder.Services.AddScoped<ICustomerMenuRepository, CustomerMenuRepository>();
 builder.Services.AddScoped<CustomerCartService>();
 builder.Services.AddScoped<ICustomerCartRepository, CustomerCartRepository>();
 
+builder.Services.AddScoped<DashboardService>();
+builder.Services.AddScoped<IDashboardRepository, DashboardRepository>();
+
 // --------------------------------------------------
 // 4. CORS Policy (For Angular Admin Frontend)
 // --------------------------------------------------
